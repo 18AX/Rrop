@@ -2,6 +2,7 @@ use clap::Parser;
 use goblin::elf::*;
 use iced_x86::*;
 use std::fs;
+mod gadget;
 
 #[derive(Parser, Default, Debug)]
 #[clap(version)]
