@@ -1,32 +1,16 @@
-use std::env;
-use std::process;
+use clap::Parser;
+
+#[derive(Parser, Default, Debug)]
+#[clap(version)]
+struct Arguments {
+    binary: String,
+    #[clap(takes_value = false, short, long)]
+    /// generate a ropchain
+    ropchain: bool,
+}
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    
-    let config = Config::new(&args).unwrap_or_else(|err| {
-        println!("Invalid args {}", err);
-        process::exit(1);
-    });
+    let args = Arguments::parse();
 
-    println!("binary: {}", config.binary_path);
-}
-
-struct Config
-{
-    binary_path: String
-}
-
-impl Config
-{
-    fn new(args: &[String]) -> Result<Config, &'static str>
-    {
-        if args.len() < 2
-        {
-            return Err("Not enough arguments");
-        }
-
-        let binary_path = args[1].clone();
-        Ok(Config{binary_path})
-    }
+    println!("Arguments {:?}", args);
 }
