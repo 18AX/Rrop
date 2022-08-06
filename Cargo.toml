@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 clap = { version = "3.2.16", features = ["derive"] }
 goblin = "0.5"
+iced-x86 = "1.17.0"
