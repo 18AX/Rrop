@@ -1,4 +1,6 @@
 use clap::Parser;
+use goblin::elf::*;
+use std::fs;
 
 #[derive(Parser, Default, Debug)]
 #[clap(version)]
@@ -12,5 +14,8 @@ struct Arguments {
 fn main() {
     let args = Arguments::parse();
 
-    println!("Arguments {:?}", args);
+    let file_contents = fs::read(args.binary).expect("Failed to read binary");
+    let elf = Elf::parse(&file_contents).expect("Failed to parse ELF");
+
+    println!("binary entry : 0x{:x}", elf.entry);
 }
