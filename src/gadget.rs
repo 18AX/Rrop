@@ -17,6 +17,10 @@ fn build_gadget(instructions: &Vec<Instruction>, position: usize) -> Gadget {
             && mnem != Mnemonic::Ret
             && mnem != Mnemonic::Retf
             && mnem != Mnemonic::Mov
+            && mnem != Mnemonic::Add
+            && mnem != Mnemonic::Sub
+            && mnem != Mnemonic::Int
+            && mnem != Mnemonic::Syscall
         {
             break;
         }

@@ -32,25 +32,26 @@ fn main() {
     let file_contents = fs::read(args.binary).expect("Failed to read binary");
     let elf = Elf::parse(&file_contents).expect("Failed to parse ELF");
 
-    println!("binary entry : 0x{:x}", elf.entry);
+    let mut gadgets: Vec<gadget::Gadget> = Vec::new();
 
     for ph in elf.program_headers {
+        /* We are only looking for headers which are loaded and executable */
         if ph.p_type == program_header::PT_LOAD && ph.is_executable() {
-            println!("{:?}", ph);
-
             /* Read the program header */
             let mut buffer = vec![0u8; ph.p_filesz as usize];
             buffer.copy_from_slice(&file_contents[ph.file_range()]);
 
             /* Decode all the instruction in the program header */
-
             let instructions = read_instructions_from_bytes(&buffer, 64, ph.p_vaddr);
 
-            let gadgets = gadget::find_gadgets(&instructions);
+            let mut g = gadget::find_gadgets(&instructions);
 
-            gadgets.iter().for_each(|g| {
-                println!("{}", g);
-            });
+            gadgets.append(&mut g);
         }
     }
+
+    /* Print all the gadgets found */
+    gadgets.iter().for_each(|g| {
+        println!("{}", g);
+    });
 }
