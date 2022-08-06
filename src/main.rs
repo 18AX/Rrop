@@ -13,6 +13,19 @@ struct Arguments {
     ropchain: bool,
 }
 
+fn read_instructions_from_bytes(buffer: &Vec<u8>, bitness: u32, ip: u64) -> Vec<Instruction> {
+    let mut instructions = Vec::new();
+
+    let mut decoder = Decoder::with_ip(bitness, &buffer, ip, DecoderOptions::NONE);
+
+    while decoder.can_decode() {
+        let instruction = decoder.decode();
+        instructions.push(instruction);
+    }
+
+    instructions
+}
+
 fn main() {
     let args = Arguments::parse();
 
@@ -30,21 +43,14 @@ fn main() {
             buffer.copy_from_slice(&file_contents[ph.file_range()]);
 
             /* Decode all the instruction in the program header */
-            let mut decoder = Decoder::with_ip(64, &buffer, ph.p_vaddr, DecoderOptions::NONE);
-            let mut instruction = Instruction::default();
-            let mut formatter = NasmFormatter::new();
 
-            /* print the instructions */
-            formatter.options_mut().set_digit_separator("`");
-            formatter.options_mut().set_first_operand_char_index(10);
-            let mut output = String::new();
+            let instructions = read_instructions_from_bytes(&buffer, 64, ph.p_vaddr);
 
-            while decoder.can_decode() {
-                output.clear();
-                decoder.decode_out(&mut instruction);
-                formatter.format(&instruction, &mut output);
-                println!("0x{:x} {}", instruction.ip(), output);
-            }
+            let gadgets = gadget::find_gadgets(&instructions);
+
+            gadgets.iter().for_each(|g| {
+                println!("{}", g);
+            });
         }
     }
 }
