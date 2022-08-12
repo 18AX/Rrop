@@ -1,5 +1,6 @@
 use iced_x86::*;
 
+#[derive(Clone)]
 pub struct Gadget {
     pub instructions: Vec<Instruction>,
 }

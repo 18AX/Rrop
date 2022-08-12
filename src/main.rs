@@ -52,7 +52,7 @@ fn main() {
     }
 
     if args.binsh {
-        let ropchain = rop::binsh(gadgets, 0x1000).expect("Failed to generate ropchain");
+        let ropchain = rop::binsh(&gadgets, 0x1000).expect("Failed to generate ropchain");
 
         ropchain.iter().for_each(|e| {
             println!("{}", e);
