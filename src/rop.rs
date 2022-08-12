@@ -1,4 +1,4 @@
-use crate::gadget::Gadget;
+use crate::gadget::{self, Gadget};
 use iced_x86::*;
 
 #[derive(PartialEq)]
@@ -53,20 +53,26 @@ impl std::fmt::Display for RopElement {
     }
 }
 
-pub fn find_write_what_where(gadgets: Vec<Gadget>) -> Result<Gadget, &'static str> {
-    /*
+pub fn find_write_what_where(gadgets: Vec<Gadget>) -> Result<Vec<Gadget>, &'static str> {
+    let mut www_gadgets: Vec<Gadget> = Vec::new();
+
     for gadget in gadgets {
-        let instruction = gadget.instructions[0];
+        let instruction = gadget.instructions[1];
 
         if instruction.mnemonic() == Mnemonic::Mov
-            && instruction.op0_kind() == OpKind::Register
+            && instruction.op0_kind() == OpKind::Memory
             && instruction.op1_kind() == OpKind::Register
+            && instruction.memory_displacement64() == 0
         {
-            return Ok(gadget);
+            www_gadgets.push(gadget);
         }
     }
-    */
-    Err("Not implemented yet")
+
+    if www_gadgets.len() == 0 {
+        return Err("Cannot find write what where gadget");
+    }
+
+    Ok(www_gadgets)
 }
 
 pub fn binsh(gadgets: Vec<Gadget>, writable_address: u64) -> Result<Vec<RopElement>, &'static str> {
@@ -76,14 +82,12 @@ pub fn binsh(gadgets: Vec<Gadget>, writable_address: u64) -> Result<Vec<RopEleme
         return Err("Not enough gadgets to generate ropchain.");
     }
 
-    let www_gadget = find_write_what_where(gadgets);
+    let www_gadgets = find_write_what_where(gadgets);
 
-    let www_gadget = match www_gadget {
+    let www_gadgets = match www_gadgets {
         Ok(gadget) => gadget,
         Err(e) => return Err(e),
     };
-
-    ropchain.push(RopElement::from_gadget(www_gadget));
 
     /* First we need to find write what where gadget */
 

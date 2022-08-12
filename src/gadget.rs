@@ -46,7 +46,11 @@ pub fn find_gadgets(instructions: &Vec<Instruction>) -> Vec<Gadget> {
         if instructions[i].mnemonic() == Mnemonic::Ret
             || instructions[i].mnemonic() == Mnemonic::Retf
         {
-            gadgets.push(build_gadget(instructions, i));
+            let g = build_gadget(instructions, i);
+
+            if g.instructions.len() > 1 {
+                gadgets.push(g);
+            }
         }
     }
 
@@ -73,6 +77,11 @@ impl std::fmt::Display for Gadget {
             output.push_str(" ;");
         }
 
-        write!(f, "{:x}:{}", self.instructions[0].ip(), output)
+        write!(
+            f,
+            "0x{:x}:{}",
+            self.instructions.last().unwrap().ip(),
+            output
+        )
     }
 }
