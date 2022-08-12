@@ -1,7 +1,15 @@
 use iced_x86::*;
 
 pub struct Gadget {
-    instructions: Vec<Instruction>,
+    pub instructions: Vec<Instruction>,
+}
+
+impl Gadget {
+    pub fn default() -> Self {
+        Gadget {
+            instructions: Vec::new(),
+        }
+    }
 }
 
 fn build_gadget(instructions: &Vec<Instruction>, position: usize) -> Gadget {

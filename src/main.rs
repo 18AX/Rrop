@@ -3,6 +3,7 @@ use goblin::elf::*;
 use iced_x86::*;
 use std::fs;
 mod gadget;
+mod rop;
 
 #[derive(Parser, Default, Debug)]
 #[clap(version)]
@@ -10,7 +11,7 @@ struct Arguments {
     binary: String,
     #[clap(takes_value = false, short, long)]
     /// generate a ropchain
-    ropchain: bool,
+    binsh: bool,
 }
 
 fn read_instructions_from_bytes(buffer: &Vec<u8>, bitness: u32, ip: u64) -> Vec<Instruction> {
@@ -50,8 +51,16 @@ fn main() {
         }
     }
 
-    /* Print all the gadgets found */
-    gadgets.iter().for_each(|g| {
-        println!("{}", g);
-    });
+    if args.binsh {
+        let ropchain = rop::binsh(gadgets, 0x1000).expect("Failed to generate ropchain");
+
+        ropchain.iter().for_each(|e| {
+            println!("{}", e);
+        });
+    } else {
+        /* Print all the gadgets found */
+        gadgets.iter().for_each(|g| {
+            println!("{}", g);
+        });
+    }
 }
