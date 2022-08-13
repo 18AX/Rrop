@@ -1,4 +1,6 @@
-use crate::gadget::{self, Gadget};
+use std::vec;
+
+use crate::gadget::Gadget;
 use iced_x86::*;
 
 #[derive(PartialEq)]
@@ -44,6 +46,7 @@ pub fn find_write_what_where(gadgets: &Vec<Gadget>) -> Result<Vec<Gadget>, &'sta
             && instruction.op0_kind() == OpKind::Memory
             && instruction.op1_kind() == OpKind::Register
             && instruction.memory_displacement64() == 0
+            && instruction.memory_segment() == Register::DS
         {
             www_gadgets.push(gadget.clone());
         }
@@ -62,7 +65,7 @@ pub fn pop(
     value: u64,
 ) -> Result<Vec<RopElement>, &'static str> {
     for g in gadgets {
-        for i in (1..g.instructions.len()) {
+        for i in 1..g.instructions.len() {
             let instruction = g.instructions[i];
 
             if instruction.mnemonic() != Mnemonic::Pop {
@@ -73,11 +76,12 @@ pub fn pop(
                 let mut v: Vec<RopElement> = Vec::new();
 
                 v.push(RopElement::new(instruction.ip(), RopElementKind::Gadget));
-                v.push(RopElement::new(value, RopElementKind::ImmediateValue));
 
-                for j in (0..i - 1) {
+                for _ in 0..i - 1 {
                     v.push(RopElement::new(0, RopElementKind::ImmediateValue));
                 }
+
+                v.push(RopElement::new(value, RopElementKind::ImmediateValue));
 
                 return Ok(v);
             }
@@ -86,6 +90,57 @@ pub fn pop(
 
     Err("Cannot find pop")
 }
+
+pub fn write_data(
+    gadgets: &Vec<Gadget>,
+    data: &Vec<u64>,
+    address: u64,
+) -> Result<Vec<RopElement>, &'static str> {
+    let www_gadgets = find_write_what_where(&gadgets);
+
+    let www_gadgets = match www_gadgets {
+        Ok(g) => g,
+        Err(e) => return Err(e),
+    };
+
+    /* try to find a usable one */
+    for g in www_gadgets {
+        let reg_src = g.instructions[1].op1_register();
+        let reg_dst = g.instructions[1].memory_base();
+
+        let mut rop: Vec<RopElement> = Vec::new();
+
+        for i in 0..data.len() {
+            /* Reg src contains the data we want to write */
+            let mut pop_reg_src = match pop(gadgets, reg_src, data[i]) {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+
+            /* reg dst contains the destination address */
+            let mut pop_reg_dst = match pop(gadgets, reg_dst, address + i as u64 * 8) {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+
+            rop.append(&mut pop_reg_src);
+            rop.append(&mut pop_reg_dst);
+            rop.push(RopElement::new(
+                g.instructions[1].ip(),
+                RopElementKind::Gadget,
+            ));
+        }
+
+        if rop.len() != 0 {
+            return Ok(rop);
+        }
+    }
+
+    Err("Impossible to find the gadgets needed to write bytes")
+}
+
+/* 2f62696e2f7368 */
+const BINSH_STR: u64 = 0x68732F6E69622F;
 
 pub fn binsh(
     gadgets: &Vec<Gadget>,
@@ -97,14 +152,12 @@ pub fn binsh(
         return Err("Not enough gadgets to generate ropchain.");
     }
 
-    let www_gadgets = find_write_what_where(gadgets);
-
-    let www_gadgets = match www_gadgets {
-        Ok(gadget) => gadget,
+    let mut w = match write_data(gadgets, &vec![BINSH_STR], writable_address) {
+        Ok(r) => r,
         Err(e) => return Err(e),
     };
 
-    /* First we need to find write what where gadget */
+    ropchain.append(&mut w);
 
     Ok(ropchain)
 }
