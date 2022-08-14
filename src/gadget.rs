@@ -13,7 +13,9 @@ impl Gadget {
     }
 }
 
-fn build_gadget(instructions: &Vec<Instruction>, position: usize) -> Gadget {
+fn build_gadget(instructions: &Vec<Instruction>, position: usize) -> Result<Vec<Gadget>, String> {
+    let mut res: Vec<Gadget> = Vec::new();
+
     let mut gadget = Gadget {
         instructions: Vec::new(),
     };
@@ -34,24 +36,46 @@ fn build_gadget(instructions: &Vec<Instruction>, position: usize) -> Gadget {
             break;
         }
 
+        /* pop r15 encoded is 415F, pop rdi encoded is 5F so a pop r15 can also be a pop rdi */
+        if mnem == Mnemonic::Pop && instructions[i].op0_register() == Register::R15 {
+            let mut rdi_gadget = Gadget {
+                instructions: gadget.instructions.clone(),
+            };
+
+            let mut ins = Instruction::new();
+            ins.set_code(Code::Pop_r64);
+            ins.set_op0_register(Register::RDI);
+            ins.set_ip(instructions[i].ip() + 8);
+            rdi_gadget.instructions.push(ins);
+
+            res.push(rdi_gadget);
+        }
+
         gadget.instructions.push(instructions[i].clone());
     }
 
-    gadget
+    if gadget.instructions.len() > 1 {
+        res.push(gadget);
+    }
+
+    if res.len() == 0 {
+        return Err(String::from("Cannot build a valid gadget"));
+    }
+
+    Ok(res)
 }
 
 pub fn find_gadgets(instructions: &Vec<Instruction>) -> Vec<Gadget> {
-    let mut gadgets = Vec::new();
+    let mut gadgets: Vec<Gadget> = Vec::new();
 
     for i in 0..instructions.len() {
         if instructions[i].mnemonic() == Mnemonic::Ret
             || instructions[i].mnemonic() == Mnemonic::Retf
         {
-            let g = build_gadget(instructions, i);
-
-            if g.instructions.len() > 1 {
-                gadgets.push(g);
-            }
+            match build_gadget(instructions, i).as_mut() {
+                Ok(e) => gadgets.append(e),
+                Err(_) => continue,
+            };
         }
     }
 

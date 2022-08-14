@@ -35,6 +35,8 @@ fn main() {
 
     let mut gadgets: Vec<gadget::Gadget> = Vec::new();
 
+    let mut writable_address: u64 = 0x0;
+
     for ph in elf.program_headers {
         /* We are only looking for headers which are loaded and executable */
         if ph.p_type == program_header::PT_LOAD && ph.is_executable() {
@@ -49,10 +51,17 @@ fn main() {
 
             gadgets.append(&mut g);
         }
+
+        if ph.p_type == program_header::PT_LOAD && ph.is_write() {
+            writable_address = ph.p_vaddr;
+        }
     }
 
     if args.binsh {
-        let ropchain = rop::binsh(&gadgets, 0x1000).expect("Failed to generate ropchain");
+        if writable_address == 0x0 {
+            panic!("Cannot find a writable address");
+        }
+        let ropchain = rop::binsh(&gadgets, writable_address).expect("Failed to generate ropchain");
 
         ropchain.iter().for_each(|e| {
             println!("{}", e);
