@@ -3,6 +3,8 @@ use core::panic;
 use goblin::elf::*;
 use iced_x86::*;
 use std::fs;
+use std::io;
+use std::time::Instant;
 mod code_gen;
 mod gadget;
 mod rop;
@@ -18,8 +20,11 @@ struct Arguments {
     /// generate python3 code using pwntool
     pwntool: bool,
     #[clap(short, long)]
-    /// generate python3 code using pwntool
+    /// Writable address
     writable_address: Option<u64>,
+    #[clap(short, long)]
+    /// Output files for gadgets
+    output_file: Option<String>,
 }
 
 fn read_instructions_from_bytes(buffer: &Vec<u8>, bitness: u32, ip: u64) -> Vec<Instruction> {
@@ -58,6 +63,7 @@ fn find_writable_address(program_headers: &Vec<ProgramHeader>) -> Result<u64, St
 }
 
 fn main() {
+    let start_time = Instant::now();
     let args = Arguments::parse();
 
     let file_contents = fs::read(&args.binary).expect("Failed to read binary");
@@ -103,23 +109,39 @@ fn main() {
         }
     }
 
+    let elapsed_time = start_time.elapsed();
+
+    let file = match args.output_file {
+        Some(e) => Box::new(
+            fs::File::options()
+                .create(true)
+                .write(true)
+                .open(e)
+                .expect("Failed to open file"),
+        ) as Box<dyn io::Write>,
+        None => Box::new(io::stdout()) as Box<dyn io::Write>,
+    };
+
+    let mut generator = code_gen::CodeGen::new(file);
+
     if args.binsh {
-        if writable_address == 0x0 {
-            panic!("Cannot find a writable address");
-        }
         let ropchain = rop::binsh(&gadgets, writable_address).expect("Failed to generate ropchain");
 
         if args.pwntool {
-            code_gen::pwntool(&args.binary, &ropchain)
+            generator
+                .pwntool(&args.binary, &ropchain)
+                .expect("Failed to write");
         } else {
-            ropchain.iter().for_each(|e| {
-                println!("{}", e);
-            });
+            generator
+                .raw_rop(&ropchain)
+                .expect("Failed to write ropchain");
         }
     } else {
         /* Print all the gadgets found */
-        gadgets.iter().for_each(|g| {
-            println!("{}", g);
-        });
+        generator
+            .raw_gadgets(&gadgets)
+            .expect("Failed to write gadgets");
+
+        println!("Found {} gadgets in {:.2?}", gadgets.len(), elapsed_time);
     }
 }

@@ -13,5 +13,5 @@ Rrop binary.elf
 
 Generate a ropchain
 ```
-Rrop binary.elf --binsh --pwntool --writable-address 4980736
+Rrop binary.elf --binsh --pwntool --writable-address 4980736 -o exploit.py
 ```
