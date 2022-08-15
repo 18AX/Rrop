@@ -45,7 +45,22 @@ fn build_gadget(instructions: &Vec<Instruction>, position: usize) -> Result<Vec<
             let mut ins = Instruction::new();
             ins.set_code(Code::Pop_r64);
             ins.set_op0_register(Register::RDI);
-            ins.set_ip(instructions[i].ip() + 8);
+            ins.set_ip(instructions[i].ip() + 1);
+            rdi_gadget.instructions.push(ins);
+
+            res.push(rdi_gadget);
+        }
+
+        /* Same for r14 => pop rsi */
+        if mnem == Mnemonic::Pop && instructions[i].op0_register() == Register::R14 {
+            let mut rdi_gadget = Gadget {
+                instructions: gadget.instructions.clone(),
+            };
+
+            let mut ins = Instruction::new();
+            ins.set_code(Code::Pop_r64);
+            ins.set_op0_register(Register::RSI);
+            ins.set_ip(instructions[i].ip() + 1);
             rdi_gadget.instructions.push(ins);
 
             res.push(rdi_gadget);

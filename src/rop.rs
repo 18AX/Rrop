@@ -10,13 +10,15 @@ pub enum RopElementKind {
 }
 pub struct RopElement {
     value: u64,
+    gadget: Gadget,
     element_type: RopElementKind,
 }
 
 impl RopElement {
-    pub fn new(value: u64, element_type: RopElementKind) -> Self {
+    pub fn new(value: u64, gadget: Gadget, element_type: RopElementKind) -> Self {
         RopElement {
             value: value,
+            gadget: gadget,
             element_type: element_type,
         }
     }
@@ -27,6 +29,10 @@ impl RopElement {
 
     pub fn kind(&self) -> &RopElementKind {
         &self.element_type
+    }
+
+    pub fn gadget(&self) -> &Gadget {
+        &self.gadget
     }
 }
 
@@ -75,13 +81,24 @@ pub fn pop(
             if instruction.op0_register() == register {
                 let mut v: Vec<RopElement> = Vec::new();
 
-                v.push(RopElement::new(instruction.ip(), RopElementKind::Gadget));
+                v.push(RopElement::new(
+                    instruction.ip(),
+                    g.clone(),
+                    RopElementKind::Gadget,
+                ));
+                v.push(RopElement::new(
+                    value,
+                    Gadget::default(),
+                    RopElementKind::ImmediateValue,
+                ));
 
                 for _ in 0..i - 1 {
-                    v.push(RopElement::new(0, RopElementKind::ImmediateValue));
+                    v.push(RopElement::new(
+                        0,
+                        Gadget::default(),
+                        RopElementKind::ImmediateValue,
+                    ));
                 }
-
-                v.push(RopElement::new(value, RopElementKind::ImmediateValue));
 
                 return Ok(v);
             }
@@ -127,6 +144,7 @@ pub fn write_data(
             rop.append(&mut pop_reg_dst);
             rop.push(RopElement::new(
                 g.instructions[1].ip(),
+                g.clone(),
                 RopElementKind::Gadget,
             ));
         }
@@ -224,6 +242,7 @@ pub fn syscall(
 
     rop.push(RopElement::new(
         syscall_gadget.instructions[1].ip(),
+        syscall_gadget.clone(),
         RopElementKind::Gadget,
     ));
 
