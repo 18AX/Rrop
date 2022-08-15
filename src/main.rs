@@ -62,30 +62,16 @@ fn find_writable_address(program_headers: &Vec<ProgramHeader>) -> Result<u64, St
     Err(String::from("Cannot find a writable address"))
 }
 
-fn main() {
-    let start_time = Instant::now();
-    let args = Arguments::parse();
-
-    let file_contents = fs::read(&args.binary).expect("Failed to read binary");
-    let elf = Elf::parse(&file_contents).expect("Failed to parse ELF");
-
-    if !elf.is_64 {
-        panic!("Rrop only works with x64 elf");
-    }
-
+fn find_gadgets_from_elf(
+    elf_data: &Vec<u8>,
+    program_headers: &Vec<ProgramHeader>,
+    symtab: &Symtab,
+) -> Vec<gadget::Gadget> {
     let mut gadgets: Vec<gadget::Gadget> = Vec::new();
 
-    let writable_address: u64 = match args.writable_address {
-        Some(e) => e,
-        None => match find_writable_address(&elf.program_headers) {
-            Ok(e) => e,
-            Err(e) => panic!("{}", &e),
-        },
-    };
-
-    for sym in elf.syms.iter() {
+    for sym in symtab.iter() {
         if sym.is_function() {
-            let ph = match find_ph_from_virt_address(&elf.program_headers, sym.st_value) {
+            let ph = match find_ph_from_virt_address(program_headers, sym.st_value) {
                 Ok(e) => e,
                 Err(_) => continue,
             };
@@ -98,7 +84,7 @@ fn main() {
             let end_address = func_file_address + sym.st_size as usize;
 
             let mut buffer = vec![0u8; sym.st_size as usize];
-            buffer.copy_from_slice(&file_contents[func_file_address..end_address]);
+            buffer.copy_from_slice(&elf_data[func_file_address..end_address]);
 
             /* Decode all the instruction in the program header */
             let instructions = read_instructions_from_bytes(&buffer, 64, sym.st_value);
@@ -108,6 +94,30 @@ fn main() {
             gadgets.append(&mut g);
         }
     }
+
+    return gadgets;
+}
+
+fn main() {
+    let start_time = Instant::now();
+    let args = Arguments::parse();
+
+    let file_contents = fs::read(&args.binary).expect("Failed to read binary");
+    let elf = Elf::parse(&file_contents).expect("Failed to parse ELF");
+
+    if !elf.is_64 {
+        panic!("Rrop only works with x64 elf");
+    }
+
+    let gadgets = find_gadgets_from_elf(&file_contents, &elf.program_headers, &elf.syms);
+
+    let writable_address: u64 = match args.writable_address {
+        Some(e) => e,
+        None => match find_writable_address(&elf.program_headers) {
+            Ok(e) => e,
+            Err(e) => panic!("{}", &e),
+        },
+    };
 
     let elapsed_time = start_time.elapsed();
 
