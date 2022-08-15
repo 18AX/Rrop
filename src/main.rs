@@ -63,6 +63,10 @@ fn main() {
     let file_contents = fs::read(&args.binary).expect("Failed to read binary");
     let elf = Elf::parse(&file_contents).expect("Failed to parse ELF");
 
+    if !elf.is_64 {
+        panic!("Rrop only works with x64 elf");
+    }
+
     let mut gadgets: Vec<gadget::Gadget> = Vec::new();
 
     let writable_address: u64 = match args.writable_address {
