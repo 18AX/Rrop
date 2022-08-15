@@ -3,11 +3,12 @@ use std::vec;
 use crate::gadget::Gadget;
 use iced_x86::*;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum RopElementKind {
     ImmediateValue,
     Gadget,
 }
+
 pub struct RopElement {
     value: u64,
     gadget: Gadget,
